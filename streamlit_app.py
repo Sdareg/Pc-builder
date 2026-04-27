@@ -27,16 +27,16 @@ categories = ["CPU", "Motherboard", "GPU", "RAM", "Storage", "PSU", "Case"]
 # Initialize session state
 if 'builds' not in st.session_state:
     st.session_state.builds = {}
-    # Create default initial build
-    default_build = Build("New Build")
-    st.session_state.builds["New Build"] = default_build
     
 if 'active_build_name' not in st.session_state:
-    st.session_state.active_build_name = "New Build"
+    st.session_state.active_build_name = None
+
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = 0
 
 # Helper functions
 def get_active_build():
-    return st.session_state.builds[st.session_state.active_build_name]
+    return st.session_state.builds.get(st.session_state.active_build_name)
 
 def create_new_build(build_name):
     if build_name and build_name not in st.session_state.builds:
@@ -47,10 +47,13 @@ def create_new_build(build_name):
     return False
 
 def delete_build(build_name):
-    if build_name in st.session_state.builds and len(st.session_state.builds) > 1:
+    if build_name in st.session_state.builds:
         del st.session_state.builds[build_name]
-        # Switch to first remaining build
-        st.session_state.active_build_name = next(iter(st.session_state.builds.keys()))
+        if st.session_state.active_build_name == build_name:
+            if len(st.session_state.builds) > 0:
+                st.session_state.active_build_name = next(iter(st.session_state.builds.keys()))
+            else:
+                st.session_state.active_build_name = None
 
 def export_build(build):
     output = []
@@ -64,16 +67,86 @@ def export_build(build):
     return ''.join(output)
 
 # Main App
-st.title("🖥️ PC Build Configurator v1.1")
+st.title("🖥️ PC Build Configurator v1.2")
 st.markdown("---")
 
 # Tab Navigation
-tab_create, tab_manage, tab_import = st.tabs(["🔨 Create Build", "📦 Manage Builds", "📤 Import / Export"])
+tab_manage, tab_edit, tab_import = st.tabs(["📦 Manage Builds", "✏️ Edit Build", "📤 Import / Export"])
 
 # --------------------------
-# CREATE BUILD TAB
+# MANAGE BUILDS TAB
 # --------------------------
-with tab_create:
+with tab_manage:
+    st.subheader("📦 Manage Saved Builds")
+    st.markdown("---")
+    
+    # Create new build
+    st.subheader("Create New Build")
+    new_build_name = st.text_input("New Build Name")
+    if st.button("➕ Create Build", use_container_width=True):
+        if create_new_build(new_build_name):
+            st.success(f"Build '{new_build_name}' created!")
+            st.session_state.active_tab = 1
+            st.rerun()
+        else:
+            st.error("Build name already exists or is invalid")
+    
+    st.markdown("---")
+    
+    # List all builds
+    st.subheader("Your Builds")
+    
+    if not st.session_state.builds:
+        st.info("No builds created yet. Create your first build above.")
+    else:
+        for build_name, build in list(st.session_state.builds.items()):
+            with st.expander(f"🔹 {build_name}"):
+                col_info, col_actions = st.columns([3, 1])
+                
+                with col_info:
+                    st.write(f"Total Parts: {sum(1 for p in build.parts.values() if p)}/7")
+                    st.write(f"Total Cost: ${build.get_total()}")
+                    
+                    errors = build.get_status()
+                    missing_errors = [e for e in errors if e.startswith("Missing essential component")]
+                    compatibility_errors = [e for e in errors if not e.startswith("Missing essential component")]
+                    
+                    if compatibility_errors:
+                        status = "⚠️ Compatibility Issues"
+                    elif missing_errors:
+                        status = "⏳ Incomplete"
+                    else:
+                        status = "✅ Complete & Valid"
+                    
+                    st.write(f"Status: {status}")
+                    
+                with col_actions:
+                    if st.button("✏️ Edit Build", key=f"switch_{build_name}"):
+                        st.session_state.active_build_name = build_name
+                        st.session_state.active_tab = 1
+                        st.rerun()
+                    
+                    if st.button("🗑️ Delete", key=f"del_{build_name}"):
+                        delete_build(build_name)
+                        st.rerun()
+                
+                # Quick export
+                build_content = export_build(build)
+                st.download_button(
+                    label="📥 Download",
+                    data=build_content,
+                    file_name=f"{build_name}.txt",
+                    mime="text/plain",
+                    key=f"dl_{build_name}"
+                )
+
+# --------------------------
+# EDIT BUILD TAB
+# --------------------------
+with tab_edit:
+    if not st.session_state.builds or not st.session_state.active_build_name:
+        st.info("No builds available. Go to Manage Builds to create a new build first.")
+        st.stop()
     
     # Build selector
     col_select, col_total = st.columns([3,1])
@@ -135,13 +208,22 @@ with tab_create:
     # Compatibility Status
     st.subheader("Build Status")
     errors = current_build.get_status()
-
-    if not errors:
-        st.success("✅ All components are compatible!")
-    else:
+    
+    missing_errors = [e for e in errors if e.startswith("Missing essential component")]
+    compatibility_errors = [e for e in errors if not e.startswith("Missing essential component")]
+    
+    if missing_errors:
+        st.warning("⏳ Build Incomplete:")
+        for error in missing_errors:
+            st.write(f"  ⚪ {error}")
+    
+    if compatibility_errors:
         st.error("⚠️ Compatibility Issues Found:")
-        for error in errors:
+        for error in compatibility_errors:
             st.write(f"  ✖ {error}")
+    
+    if not errors:
+        st.success("✅ Build Complete & All components are compatible!")
 
     # Power Calculation
     total_watts = sum(p.tdp for p in current_build.parts.values() if p and p.type != "PSU")
@@ -159,81 +241,41 @@ with tab_create:
                 st.error("⚠️ Insufficient Power Supply!")
 
 # --------------------------
-# MANAGE BUILDS TAB
-# --------------------------
-with tab_manage:
-    st.subheader("📦 Manage Saved Builds")
-    st.markdown("---")
-    
-    # Create new build
-    st.subheader("Create New Build")
-    new_build_name = st.text_input("New Build Name")
-    if st.button("➕ Create Build", use_container_width=True):
-        if create_new_build(new_build_name):
-            st.success(f"Build '{new_build_name}' created!")
-            st.rerun()
-        else:
-            st.error("Build name already exists or is invalid")
-    
-    st.markdown("---")
-    
-    # List all builds
-    st.subheader("Your Builds")
-    
-    for build_name, build in list(st.session_state.builds.items()):
-        with st.expander(f"🔹 {build_name}"):
-            col_info, col_actions = st.columns([3, 1])
-            
-            with col_info:
-                st.write(f"Total Parts: {sum(1 for p in build.parts.values() if p)}/7")
-                st.write(f"Total Cost: ${build.get_total()}")
-                status = "✅ Valid" if not build.get_status() else "⚠️ Has Issues"
-                st.write(f"Status: {status}")
-                
-            with col_actions:
-                if st.button("✏️ Switch", key=f"switch_{build_name}"):
-                    st.session_state.active_build_name = build_name
-                    st.rerun()
-                
-                if st.button("🗑️ Delete", key=f"del_{build_name}", disabled=len(st.session_state.builds)<=1):
-                    delete_build(build_name)
-                    st.rerun()
-            
-            # Quick export
-            build_content = export_build(build)
-            st.download_button(
-                label="📥 Download",
-                data=build_content,
-                file_name=f"{build_name}.txt",
-                mime="text/plain",
-                key=f"dl_{build_name}"
-            )
-
-# --------------------------
 # IMPORT / EXPORT TAB
 # --------------------------
 with tab_import:
     st.subheader("📤 Import Build")
-    st.markdown("Upload a previously saved build file:")
+    st.markdown("Upload a previously saved build file (single build or bulk export file):")
     
     uploaded_file = st.file_uploader("Choose a build file", type="txt")
     
     if uploaded_file is not None:
         content = uploaded_file.read().decode("utf-8")
-        lines = content.splitlines()
+        build_blocks = content.split("="*40)
+        imported_count = 0
         
-        # Extract build name
-        build_name = lines[0].replace("BUILD NAME: ", "").strip()
-        
-        if build_name in st.session_state.builds:
-            st.error(f"Build '{build_name}' already exists!")
-        else:
+        for block in build_blocks:
+            lines = block.strip().splitlines()
+            if not lines:
+                continue
+                
+            # Extract build name
+            build_name_line = [l for l in lines if l.startswith("BUILD NAME: ")]
+            if not build_name_line:
+                continue
+                
+            build_name = build_name_line[0].replace("BUILD NAME: ", "").strip()
+            
+            if build_name in st.session_state.builds:
+                st.warning(f"Build '{build_name}' already exists, skipped")
+                continue
+                
             # Create new build
             imported_build = Build(build_name)
             
             # Find parts in catalog and add to build
-            for line in lines[2:-3]:
-                if ":" in line:
+            for line in lines:
+                if ":" in line and not line.startswith("BUILD NAME") and not line.startswith("Total Cost") and not line.startswith("---"):
                     cat, part_name = line.split(":", 1)
                     cat = cat.strip()
                     part_name = part_name.strip()
@@ -246,7 +288,10 @@ with tab_import:
                                 break
             
             st.session_state.builds[build_name] = imported_build
-            st.success(f"Build '{build_name}' imported successfully!")
+            imported_count +=1
+        
+        if imported_count > 0:
+            st.success(f"Successfully imported {imported_count} build(s)!")
             st.balloons()
     
     st.markdown("---")
@@ -254,7 +299,7 @@ with tab_import:
     st.subheader("📥 Export All Builds")
     st.write(f"You have {len(st.session_state.builds)} saved builds")
     
-    if st.button("Export All Builds"):
+    if st.button("Export All Builds") and st.session_state.builds:
         export_all = []
         for name, build in st.session_state.builds.items():
             export_all.append(export_build(build))
