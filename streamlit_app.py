@@ -31,9 +31,6 @@ if 'builds' not in st.session_state:
 if 'active_build_name' not in st.session_state:
     st.session_state.active_build_name = None
 
-if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = 0
-
 # Helper functions
 def get_active_build():
     return st.session_state.builds.get(st.session_state.active_build_name)
@@ -67,18 +64,39 @@ def export_build(build):
     return ''.join(output)
 
 # Main App
-st.title("🖥️ PC Build Configurator v1.3")
+st.title("🖥️ PC Build Configurator v1.4")
 st.markdown("---")
 
-# Tab Navigation
-tab_manage, tab_edit, tab_import = st.tabs(["📦 Manage Builds", "✏️ Edit Build", "📤 Import / Export"])
+# --------------------------
+# NEW CONTROLLED NAVIGATION
+# --------------------------
+
+# Define the tab names
+tabs = ["📦 Manage Builds", "✏️ Edit Build", "📤 Import / Export"]
+
+# Use session state to track the active tab index
+if 'active_tab_index' not in st.session_state:
+    st.session_state.active_tab_index = 0
+
+# Create segmented control navigation
+selected_tab = st.segmented_control(
+    "Navigation", 
+    options=tabs, 
+    default=tabs[st.session_state.active_tab_index],
+    key="nav_bar",
+    label_visibility="collapsed"
+)
+
+# Update the index based on the selection
+st.session_state.active_tab_index = tabs.index(selected_tab)
+
+st.markdown("---")
 
 # --------------------------
 # MANAGE BUILDS TAB
 # --------------------------
-with tab_manage:
+if st.session_state.active_tab_index == 0:
     st.subheader("📦 Manage Saved Builds")
-    st.markdown("---")
     
     # Create new build
     st.subheader("Create New Build")
@@ -86,7 +104,7 @@ with tab_manage:
     if st.button("➕ Create Build", use_container_width=True):
         if create_new_build(new_build_name):
             st.success(f"Build '{new_build_name}' created!")
-            st.query_params.tab = "1"
+            st.session_state.active_tab_index = 1
             st.rerun()
         else:
             st.error("Build name already exists or is invalid")
@@ -123,7 +141,7 @@ with tab_manage:
                 with col_actions:
                     if st.button("✏️ Edit Build", key=f"switch_{build_name}"):
                         st.session_state.active_build_name = build_name
-                        st.query_params.tab = "1"
+                        st.session_state.active_tab_index = 1
                         st.rerun()
                     
                     if st.button("🗑️ Delete", key=f"del_{build_name}"):
@@ -143,7 +161,7 @@ with tab_manage:
 # --------------------------
 # EDIT BUILD TAB
 # --------------------------
-with tab_edit:
+elif st.session_state.active_tab_index == 1:
     if not st.session_state.builds or not st.session_state.active_build_name:
         st.info("No builds available. Go to Manage Builds to create a new build first.")
         st.stop()
@@ -249,8 +267,8 @@ with tab_edit:
 # --------------------------
 # IMPORT / EXPORT TAB
 # --------------------------
-with tab_import:
-    st.subheader("📤 Import Build")
+elif st.session_state.active_tab_index == 2:
+    st.subheader("📤 Import / Export")
     st.markdown("Upload a previously saved build file (single build or bulk export file):")
     
     uploaded_file = st.file_uploader("Choose a build file", type="txt")
