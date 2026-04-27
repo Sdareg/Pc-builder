@@ -162,18 +162,28 @@ if st.session_state.active_tab_index == 0:
 # EDIT BUILD TAB
 # --------------------------
 elif st.session_state.active_tab_index == 1:
-    if not st.session_state.builds or not st.session_state.active_build_name:
+    if not st.session_state.builds:
         st.info("No builds available. Go to Manage Builds to create a new build first.")
+        st.session_state.active_tab_index = 0
         st.stop()
+
+    build_options = list(st.session_state.builds.keys())
+    
+    try:
+        default_index = build_options.index(st.session_state.active_build_name)
+    except (ValueError, KeyError):
+        default_index = 0
     
     # Build selector
     col_select, col_total = st.columns([3,1])
     with col_select:
         active_build = st.selectbox(
             "Active Build", 
-            options=list(st.session_state.builds.keys()),
-            index=list(st.session_state.builds.keys()).index(st.session_state.active_build_name)
+            options=build_options, 
+            index=default_index,
+            key="edit_build_selector"
         )
+        
         if active_build != st.session_state.active_build_name:
             st.session_state.active_build_name = active_build
             st.rerun()
