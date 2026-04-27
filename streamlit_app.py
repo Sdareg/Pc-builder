@@ -67,7 +67,7 @@ def export_build(build):
     return ''.join(output)
 
 # Main App
-st.title("🖥️ PC Build Configurator v1.2")
+st.title("🖥️ PC Build Configurator v1.3")
 st.markdown("---")
 
 # Tab Navigation
@@ -86,7 +86,7 @@ with tab_manage:
     if st.button("➕ Create Build", use_container_width=True):
         if create_new_build(new_build_name):
             st.success(f"Build '{new_build_name}' created!")
-            st.session_state.active_tab = 1
+            st.query_params.tab = "1"
             st.rerun()
         else:
             st.error("Build name already exists or is invalid")
@@ -123,7 +123,7 @@ with tab_manage:
                 with col_actions:
                     if st.button("✏️ Edit Build", key=f"switch_{build_name}"):
                         st.session_state.active_build_name = build_name
-                        st.session_state.active_tab = 1
+                        st.query_params.tab = "1"
                         st.rerun()
                     
                     if st.button("🗑️ Delete", key=f"del_{build_name}"):
@@ -193,15 +193,21 @@ with tab_edit:
     with right_col:
         st.subheader("Current Build")
         
-        build_table = []
         for category, part in current_build.parts.items():
-            build_table.append({
-                "Component": category,
-                "Selection": part.name if part else "🔴 Not Selected",
-                "Price": f"${part.price}" if part else "-"
-            })
-        
-        st.table(build_table)
+            col_cat, col_val, col_remove = st.columns([2, 4, 1])
+            with col_cat:
+                st.write(f"**{category}**")
+            with col_val:
+                if part:
+                    st.write(f"{part.name} (${part.price})")
+                else:
+                    st.write("🔴 Not Selected")
+            with col_remove:
+                if part:
+                    if st.button("❌", key=f"remove_{category}", help=f"Remove {category}"):
+                        current_build.parts[category] = None
+                        st.rerun()
+        st.markdown("")
 
     st.markdown("---")
 
@@ -293,6 +299,7 @@ with tab_import:
         if imported_count > 0:
             st.success(f"Successfully imported {imported_count} build(s)!")
             st.balloons()
+            st.rerun()
     
     st.markdown("---")
     
