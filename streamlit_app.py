@@ -88,7 +88,10 @@ selected_tab = st.segmented_control(
 )
 
 # Update the index based on the selection
-st.session_state.active_tab_index = tabs.index(selected_tab)
+# Fix for double click race condition: only update if selected_tab is valid
+if selected_tab in tabs:
+    st.session_state.active_tab_index = tabs.index(selected_tab)
+# Otherwise keep the existing active tab index (prevents ValueError on fast double clicks)
 
 st.markdown("---")
 
