@@ -16,6 +16,42 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --------------------------
+# GLOBAL SIZE CONTROLS
+# --------------------------
+if 'ui_settings' not in st.session_state:
+    st.session_state.ui_settings = {
+        'button_height': 32,
+        'image_width': 220,
+        'spacing': 0.4,
+        'card_columns': 3
+    }
+
+# Global CSS injection
+st.markdown(f"""
+<style>
+    .stButton button {{
+        height: {st.session_state.ui_settings['button_height']}px !important;
+        min-height: {st.session_state.ui_settings['button_height']}px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+        line-height: 1.2 !important;
+    }}
+    
+    .element-container {{
+        margin-bottom: {st.session_state.ui_settings['spacing']}rem !important;
+    }}
+    
+    .stImage {{
+        margin-bottom: 0.4rem !important;
+    }}
+    
+    hr {{
+        margin: 0.6rem 0px !important;
+    }}
+</style>
+""", unsafe_allow_html=True)
+
 # Load components catalog once
 @st.cache_data
 def get_catalog():
@@ -39,6 +75,9 @@ if 'view' not in st.session_state:
 
 if 'active_category' not in st.session_state:
     st.session_state.active_category = None
+
+if 'show_debug' not in st.session_state:
+    st.session_state.show_debug = False
 
 # Helper functions
 def get_active_build():
@@ -77,7 +116,7 @@ def go_back_main():
     st.session_state.active_category = None
 
 # Main App
-st.title("🖥️ PC Build Configurator v1.5")
+st.title("🖥️ PC Build Configurator v1.7")
 st.markdown("---")
 
 # --------------------------
@@ -98,6 +137,29 @@ selected_tab = st.segmented_control(
 
 # Update the index based on the selection
 st.session_state.active_tab_index = tabs.index(selected_tab)
+
+# Fix double click tab error - always reset view state when switching main tabs
+if st.session_state.view != 'main':
+    st.session_state.view = 'main'
+    st.session_state.active_category = None
+
+st.markdown("---")
+
+# --------------------------
+# DEBUG / UI CONTROL PANEL
+# --------------------------
+with st.expander("⚙️ UI Size Controls", expanded=st.session_state.show_debug):
+    st.session_state.ui_settings['button_height'] = st.slider("Button Height (px)", 24, 60, st.session_state.ui_settings['button_height'])
+    st.session_state.ui_settings['image_width'] = st.slider("Image Width (px)", 150, 400, st.session_state.ui_settings['image_width'])
+    st.session_state.ui_settings['spacing'] = st.slider("Spacing Between Elements", 0.1, 1.5, st.session_state.ui_settings['spacing'], step=0.1)
+    st.session_state.ui_settings['card_columns'] = st.slider("Parts Grid Columns", 2, 5, st.session_state.ui_settings['card_columns'])
+    
+    st.button("🔄 Reset Defaults", on_click=lambda: st.session_state.ui_settings.update({
+        'button_height': 32,
+        'image_width': 220,
+        'spacing': 0.4,
+        'card_columns': 3
+    }))
 
 st.markdown("---")
 
@@ -179,56 +241,57 @@ elif st.session_state.active_tab_index == 1:
     
     if st.session_state.view == 'main':
         # Build selector
-        col_select, col_total = st.columns([3,1])
-        with col_select:
-            active_build = st.selectbox(
-                "Active Build", 
-                options=list(st.session_state.builds.keys()),
-                index=list(st.session_state.builds.keys()).index(st.session_state.active_build_name)
-            )
-            if active_build != st.session_state.active_build_name:
-                st.session_state.active_build_name = active_build
-                st.rerun()
-        
-        with col_total:
-            st.metric("Total Estimated Cost", f"${current_build.get_total()}")
+        active_build = st.selectbox(
+            "Active Build", 
+            options=list(st.session_state.builds.keys()),
+            index=list(st.session_state.builds.keys()).index(st.session_state.active_build_name)
+        )
+        if active_build != st.session_state.active_build_name:
+            st.session_state.active_build_name = active_build
+            st.rerun()
 
         st.markdown("---")
 
         # Layout
-        left_col, right_col = st.columns([1, 1])
+        left_col, right_col = st.columns([3, 1])
 
         with left_col:
-            st.subheader("Add Components")
-            
-            # Category Buttons Grid
-            st.write("Click to browse parts:")
-            cat_cols = st.columns(2)
-            for idx, cat in enumerate(categories):
-                with cat_cols[idx % 2]:
-                    if st.button(f"🔹 {cat}", use_container_width=True, type="secondary"):
-                        st.session_state.active_category = cat
-                        st.session_state.view = 'browser'
-                        st.rerun()
-
-        with right_col:
             st.subheader("Current Build")
             
             for category, part in current_build.parts.items():
-                col_cat, col_val, col_remove = st.columns([2, 4, 1])
-                with col_cat:
-                    st.write(f"**{category}**")
-                with col_val:
-                    if part:
-                        st.write(f"{part.name} (${part.price})")
-                    else:
-                        st.write("🔴 Not Selected")
-                with col_remove:
-                    if part:
-                        if st.button("❌", key=f"remove_{category}", help=f"Remove {category}"):
-                            current_build.parts[category] = None
+                with st.container():
+                    col_cat, col_btn, col_remove = st.columns([2, 5, 1])
+                    with col_cat:
+                        st.write(f"**{category}**")
+                    with col_btn:
+                        if part:
+                            button_label = f"✅ {part.name} (${part.price})"
+                            button_type = "primary"
+                        else:
+                            button_label = f"🔴 Click to select {category}"
+                            button_type = "secondary"
+                        
+                        if st.button(button_label, key=f"select_{category}", use_container_width=True, type=button_type):
+                            st.session_state.active_category = category
+                            st.session_state.view = 'browser'
                             st.rerun()
-            st.markdown("")
+                            
+                    with col_remove:
+                        if part:
+                            if st.button("❌", key=f"remove_{category}", help=f"Remove {category}"):
+                                current_build.parts[category] = None
+                                st.rerun()
+                st.markdown("")
+
+        with right_col:
+            st.subheader("Quick Stats")
+            st.metric("Total Cost", f"${current_build.get_total()}")
+            
+            parts_count = sum(1 for p in current_build.parts.values() if p)
+            st.metric("Parts Selected", f"{parts_count}/7")
+            
+            total_watts = sum(p.tdp for p in current_build.parts.values() if p and p.type != "PSU")
+            st.metric("Power Draw", f"{total_watts}W")
 
         st.markdown("---")
 
@@ -291,21 +354,20 @@ elif st.session_state.active_tab_index == 1:
         st.write(f"Showing {len(filtered_parts)} parts")
         st.markdown("---")
         
-        # Parts Grid - 3 columns
-        cols = st.columns(3)
+        # Parts Grid - dynamic columns from debug slider
+        cols = st.columns(st.session_state.ui_settings['card_columns'])
         for idx, part in enumerate(filtered_parts):
-            with cols[idx % 3]:
+            with cols[idx % st.session_state.ui_settings['card_columns']]:
                 st.markdown(f"### {part.name}")
                 
-            
                 # Local image from img folder - use part name exactly as filename
                 img_path = os.path.join(os.path.dirname(__file__), 'img', f"{part.name}.jpg")
                 
                 if os.path.exists(img_path):
-                    st.image(img_path, use_column_width=True)
+                    st.image(img_path, width=st.session_state.ui_settings['image_width'])
                 else:
                     # Fallback placeholder when image not found
-                    st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), use_column_width=True)
+                    st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), width=st.session_state.ui_settings['image_width'])
                 
                 st.markdown(f"**Price:** ${part.price}")
                 
