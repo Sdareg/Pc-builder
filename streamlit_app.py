@@ -298,7 +298,14 @@ elif st.session_state.active_tab_index == 1:
                 st.markdown(f"### {part.name}")
                 
             
-                st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), use_column_width=True)
+                # Local image from img folder - use part name exactly as filename
+                img_path = os.path.join(os.path.dirname(__file__), 'img', f"{part.name}.jpg")
+                
+                if os.path.exists(img_path):
+                    st.image(img_path, use_column_width=True)
+                else:
+                    # Fallback placeholder when image not found
+                    st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), use_column_width=True)
                 
                 st.markdown(f"**Price:** ${part.price}")
                 
