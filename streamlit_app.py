@@ -77,7 +77,7 @@ def go_back_main():
     st.session_state.active_category = None
 
 # Main App
-st.title("🖥️ PC Build Configurator v1.7")
+st.title("🖥️ PC Build Configurator v1.5")
 st.markdown("---")
 
 # --------------------------
@@ -98,11 +98,6 @@ selected_tab = st.segmented_control(
 
 # Update the index based on the selection
 st.session_state.active_tab_index = tabs.index(selected_tab)
-
-# Fix double click tab error - always reset view state when switching main tabs
-if st.session_state.view != 'main':
-    st.session_state.view = 'main'
-    st.session_state.active_category = None
 
 st.markdown("---")
 
@@ -184,57 +179,56 @@ elif st.session_state.active_tab_index == 1:
     
     if st.session_state.view == 'main':
         # Build selector
-        active_build = st.selectbox(
-            "Active Build", 
-            options=list(st.session_state.builds.keys()),
-            index=list(st.session_state.builds.keys()).index(st.session_state.active_build_name)
-        )
-        if active_build != st.session_state.active_build_name:
-            st.session_state.active_build_name = active_build
-            st.rerun()
+        col_select, col_total = st.columns([3,1])
+        with col_select:
+            active_build = st.selectbox(
+                "Active Build", 
+                options=list(st.session_state.builds.keys()),
+                index=list(st.session_state.builds.keys()).index(st.session_state.active_build_name)
+            )
+            if active_build != st.session_state.active_build_name:
+                st.session_state.active_build_name = active_build
+                st.rerun()
+        
+        with col_total:
+            st.metric("Total Estimated Cost", f"${current_build.get_total()}")
 
         st.markdown("---")
 
         # Layout
-        left_col, right_col = st.columns([3, 1])
+        left_col, right_col = st.columns([1, 1])
 
         with left_col:
+            st.subheader("Add Components")
+            
+            # Category Buttons Grid
+            st.write("Click to browse parts:")
+            cat_cols = st.columns(2)
+            for idx, cat in enumerate(categories):
+                with cat_cols[idx % 2]:
+                    if st.button(f"🔹 {cat}", use_container_width=True, type="secondary"):
+                        st.session_state.active_category = cat
+                        st.session_state.view = 'browser'
+                        st.rerun()
+
+        with right_col:
             st.subheader("Current Build")
             
             for category, part in current_build.parts.items():
-                with st.container():
-                    col_cat, col_btn, col_remove = st.columns([2, 5, 1])
-                    with col_cat:
-                        st.write(f"**{category}**")
-                    with col_btn:
-                        if part:
-                            button_label = f"✅ {part.name} (${part.price})"
-                            button_type = "primary"
-                        else:
-                            button_label = f"🔴 Click to select {category}"
-                            button_type = "secondary"
-                        
-                        if st.button(button_label, key=f"select_{category}", use_container_width=True, type=button_type):
-                            st.session_state.active_category = category
-                            st.session_state.view = 'browser'
+                col_cat, col_val, col_remove = st.columns([2, 4, 1])
+                with col_cat:
+                    st.write(f"**{category}**")
+                with col_val:
+                    if part:
+                        st.write(f"{part.name} (${part.price})")
+                    else:
+                        st.write("🔴 Not Selected")
+                with col_remove:
+                    if part:
+                        if st.button("❌", key=f"remove_{category}", help=f"Remove {category}"):
+                            current_build.parts[category] = None
                             st.rerun()
-                            
-                    with col_remove:
-                        if part:
-                            if st.button("❌", key=f"remove_{category}", help=f"Remove {category}"):
-                                current_build.parts[category] = None
-                                st.rerun()
-                st.markdown("")
-
-        with right_col:
-            st.subheader("Quick Stats")
-            st.metric("Total Cost", f"${current_build.get_total()}")
-            
-            parts_count = sum(1 for p in current_build.parts.values() if p)
-            st.metric("Parts Selected", f"{parts_count}/7")
-            
-            total_watts = sum(p.tdp for p in current_build.parts.values() if p and p.type != "PSU")
-            st.metric("Power Draw", f"{total_watts}W")
+            st.markdown("")
 
         st.markdown("---")
 
@@ -277,10 +271,7 @@ elif st.session_state.active_tab_index == 1:
         # --------------------------
         # PARTS BROWSER VIEW
         # --------------------------
-        if st.button("← Go Back", use_container_width=True):
-            go_back_main()
-            st.rerun()
-            
+        st.button("← Go Back", on_click=go_back_main, use_container_width=True)
         st.markdown("---")
         
         cat = st.session_state.active_category
@@ -306,14 +297,15 @@ elif st.session_state.active_tab_index == 1:
             with cols[idx % 3]:
                 st.markdown(f"### {part.name}")
                 
+            
                 # Local image from img folder - use part name exactly as filename
                 img_path = os.path.join(os.path.dirname(__file__), 'img', f"{part.name}.jpg")
                 
                 if os.path.exists(img_path):
-                    st.image(img_path, width=220)
+                    st.image(img_path, use_column_width=True)
                 else:
                     # Fallback placeholder when image not found
-                    st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), width=220)
+                    st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), use_column_width=True)
                 
                 st.markdown(f"**Price:** ${part.price}")
                 
