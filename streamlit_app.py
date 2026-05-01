@@ -16,42 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --------------------------
-# GLOBAL SIZE CONTROLS
-# --------------------------
-if 'ui_settings' not in st.session_state:
-    st.session_state.ui_settings = {
-        'button_height': 32,
-        'image_width': 180,
-        'spacing': 0.3,
-        'card_columns': 3
-    }
-
-# Global CSS injection
-st.markdown(f"""
-<style>
-    .stButton button {{
-        height: {st.session_state.ui_settings['button_height']}px !important;
-        min-height: {st.session_state.ui_settings['button_height']}px !important;
-        padding-top: 0px !important;
-        padding-bottom: 0px !important;
-        line-height: 1.2 !important;
-    }}
-    
-    .element-container {{
-        margin-bottom: {st.session_state.ui_settings['spacing']}rem !important;
-    }}
-    
-    .stImage {{
-        margin-bottom: 0.3rem !important;
-    }}
-    
-    hr {{
-        margin: 0.5rem 0px !important;
-    }}
-</style>
-""", unsafe_allow_html=True)
-
 # Load components catalog once
 @st.cache_data
 def get_catalog():
@@ -66,9 +30,6 @@ if 'builds' not in st.session_state:
     
 if 'active_build_name' not in st.session_state:
     st.session_state.active_build_name = None
-
-if 'active_tab_index' not in st.session_state:
-    st.session_state.active_tab_index = 0
 
 if 'view' not in st.session_state:
     st.session_state.view = 'main'
@@ -113,57 +74,21 @@ def go_back_main():
     st.session_state.active_category = None
 
 # Main App
-st.title("🖥️ PC Build Configurator v1.8")
+st.title("🖥️ PC Build Configurator v1.6")
 st.markdown("---")
 
 # --------------------------
-# CONTROLLED NAVIGATION
+# NATIVE TABS - FINALLY FULLY WORKING
 # --------------------------
 
-# Define the tab names
-tabs = ["📦 Manage Builds", "✏️ Edit Build", "📤 Import / Export"]
-
-# Create segmented control navigation
-selected_tab = st.segmented_control(
-    "Navigation", 
-    options=tabs, 
-    default=tabs[st.session_state.active_tab_index],
-    key="nav_bar",
-    label_visibility="collapsed"
-)
-
-# Update the index based on the selection
-st.session_state.active_tab_index = tabs.index(selected_tab)
-
-# Fix double click tab error - always reset view state when switching main tabs
-if st.session_state.view != 'main':
-    st.session_state.view = 'main'
-    st.session_state.active_category = None
-
-st.markdown("---")
-
-# --------------------------
-# DEBUG / UI CONTROL PANEL
-# --------------------------
-with st.expander("⚙️ UI Size Controls"):
-    new_button_height = st.slider("Button Height (px)", 24, 60, st.session_state.ui_settings['button_height'])
-    new_image_width = st.slider("Image Width (px)", 120, 300, st.session_state.ui_settings['image_width'])
-    new_spacing = st.slider("Spacing Between Elements", 0.1, 1.0, st.session_state.ui_settings['spacing'], step=0.1)
-    new_columns = st.slider("Parts Grid Columns", 2, 5, st.session_state.ui_settings['card_columns'])
-    
-    if st.button("✅ Apply Changes"):
-        st.session_state.ui_settings['button_height'] = new_button_height
-        st.session_state.ui_settings['image_width'] = new_image_width
-        st.session_state.ui_settings['spacing'] = new_spacing
-        st.session_state.ui_settings['card_columns'] = new_columns
-        st.rerun()
+tab_manage, tab_edit, tab_import = st.tabs(["📦 Manage Builds", "✏️ Edit Build", "📤 Import / Export"])
 
 st.markdown("---")
 
 # --------------------------
 # MANAGE BUILDS TAB
 # --------------------------
-if st.session_state.active_tab_index == 0:
+with tab_manage:
     st.subheader("📦 Manage Saved Builds")
     
     # Create new build
@@ -172,7 +97,6 @@ if st.session_state.active_tab_index == 0:
     if st.button("➕ Create Build", use_container_width=True):
         if create_new_build(new_build_name):
             st.success(f"Build '{new_build_name}' created!")
-            st.session_state.active_tab_index = 1
             st.rerun()
         else:
             st.error("Build name already exists or is invalid")
@@ -209,7 +133,7 @@ if st.session_state.active_tab_index == 0:
                 with col_actions:
                     if st.button("✏️ Edit Build", key=f"switch_{build_name}"):
                         st.session_state.active_build_name = build_name
-                        st.session_state.active_tab_index = 1
+                        st.switch_page("streamlit_app.py")
                         st.rerun()
                     
                     if st.button("🗑️ Delete", key=f"del_{build_name}"):
@@ -229,7 +153,7 @@ if st.session_state.active_tab_index == 0:
 # --------------------------
 # EDIT BUILD TAB
 # --------------------------
-elif st.session_state.active_tab_index == 1:
+with tab_edit:
     if not st.session_state.builds or not st.session_state.active_build_name:
         st.info("No builds available. Go to Manage Builds to create a new build first.")
         st.stop()
@@ -341,32 +265,62 @@ elif st.session_state.active_tab_index == 1:
         
         # Filter options
         st.subheader("Filters")
-        col1, col2 = st.columns(2)
-        with col1:
-            min_price = st.number_input("Minimum Price", min_value=0, value=0)
-        with col2:
-            max_price = st.number_input("Maximum Price", min_value=0, value=5000)
+        price_range = st.slider("Price Range", min_value=0, max_value=5000, value=(0, 5000), step=50, format="$%d")
+        min_price, max_price = price_range
+
+        # Dynamic filters - only show relevant options for this category
+        category_parts = [c for c in catalog if c.type == cat]
         
-        filtered_parts = [c for c in catalog if c.type == cat and min_price <= c.price <= max_price]
+        # Socket filter (for CPU, Motherboard)
+        if cat in ["CPU", "Motherboard"]:
+            available_sockets = sorted(list({p.socket for p in category_parts if p.socket and p.socket != 'N/A'}))
+            selected_socket = st.multiselect("Socket", options=available_sockets, default=available_sockets)
+        
+        # Memory type filter (for CPU, Motherboard, RAM)
+        if cat in ["CPU", "Motherboard", "RAM"]:
+            available_memory = sorted(list({p.memory for p in category_parts if p.memory and p.memory != 'N/A'}))
+            selected_memory = st.multiselect("Memory Type", options=available_memory, default=available_memory)
+        
+        # TDP filter only for components that actually consume power
+        if cat in ["CPU", "GPU", "PSU"]:
+            max_tdp = st.slider("Max TDP (W)", min_value=0, max_value=2000, value=2000,format="%dW")
+
+        # Apply all filters
+        filtered_parts = category_parts
+        filtered_parts = [p for p in filtered_parts if min_price <= p.price <= max_price]
+        
+        if cat in ["CPU", "Motherboard"] and selected_socket:
+            filtered_parts = [p for p in filtered_parts if p.socket in selected_socket]
+        
+        if cat in ["CPU", "Motherboard", "RAM"] and selected_memory:
+            filtered_parts = [p for p in filtered_parts if p.memory in selected_memory]
+        
+        if cat in ["CPU", "GPU", "PSU"]:
+            filtered_parts = [p for p in filtered_parts if p.tdp <= max_tdp]
         
         st.markdown("---")
         st.write(f"Showing {len(filtered_parts)} parts")
         st.markdown("---")
         
-        # Parts Grid - dynamic columns from debug slider
-        cols = st.columns(st.session_state.ui_settings['card_columns'])
+        # Parts Grid - 3 columns
+        cols = st.columns(3)
         for idx, part in enumerate(filtered_parts):
-            with cols[idx % st.session_state.ui_settings['card_columns']]:
+            with cols[idx % 3]:
                 st.markdown(f"### {part.name}")
                 
+            
                 # Local image from img folder - use part name exactly as filename
                 img_path = os.path.join(os.path.dirname(__file__), 'img', f"{part.name}.jpg")
                 
                 if os.path.exists(img_path):
-                    st.image(img_path, width=st.session_state.ui_settings['image_width'])
+                    st.image(img_path, width=300)
                 else:
-                    # Fallback placeholder when image not found
-                    st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), width=st.session_state.ui_settings['image_width'])
+                    # Fallback placeholder from local img folder
+                    placeholder_path = os.path.join(os.path.dirname(__file__), 'img', 'placeholder.jpg')
+                    if os.path.exists(placeholder_path):
+                        st.image(placeholder_path,width=300)
+                    else:
+                        st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), use_column_width=True)
                 
                 st.markdown(f"**Price:** ${part.price}")
                 
@@ -375,7 +329,8 @@ elif st.session_state.active_tab_index == 1:
                     st.markdown(f"**Socket:** {part.socket}")
                 if part.memory and part.memory != 'N/A':
                     st.markdown(f"**Memory:** {part.memory}")
-                st.markdown(f"**TDP:** {part.tdp}W")
+                if part.tdp > 0:
+                    st.markdown(f"**TDP:** {part.tdp}W")
                 
                 st.markdown("---")
                 
@@ -390,7 +345,7 @@ elif st.session_state.active_tab_index == 1:
 # --------------------------
 # IMPORT / EXPORT TAB
 # --------------------------
-elif st.session_state.active_tab_index == 2:
+with tab_import:
     st.subheader("📤 Import / Export")
     st.markdown("Upload a previously saved build file (single build or bulk export file):")
     
@@ -461,3 +416,4 @@ elif st.session_state.active_tab_index == 2:
         )
 
     st.markdown("---")
+    st.info("💡 Build files are standard text files that you can share, backup, or import on any device running this app.")
