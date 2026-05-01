@@ -16,42 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --------------------------
-# GLOBAL SIZE CONTROLS
-# --------------------------
-if 'ui_settings' not in st.session_state:
-    st.session_state.ui_settings = {
-        'button_height': 32,
-        'image_width': 220,
-        'spacing': 0.4,
-        'card_columns': 3
-    }
-
-# Global CSS injection
-st.markdown(f"""
-<style>
-    .stButton button {{
-        height: {st.session_state.ui_settings['button_height']}px !important;
-        min-height: {st.session_state.ui_settings['button_height']}px !important;
-        padding-top: 0px !important;
-        padding-bottom: 0px !important;
-        line-height: 1.2 !important;
-    }}
-    
-    .element-container {{
-        margin-bottom: {st.session_state.ui_settings['spacing']}rem !important;
-    }}
-    
-    .stImage {{
-        margin-bottom: 0.4rem !important;
-    }}
-    
-    hr {{
-        margin: 0.6rem 0px !important;
-    }}
-</style>
-""", unsafe_allow_html=True)
-
 # Load components catalog once
 @st.cache_data
 def get_catalog():
@@ -75,9 +39,6 @@ if 'view' not in st.session_state:
 
 if 'active_category' not in st.session_state:
     st.session_state.active_category = None
-
-if 'show_debug' not in st.session_state:
-    st.session_state.show_debug = False
 
 # Helper functions
 def get_active_build():
@@ -142,38 +103,6 @@ st.session_state.active_tab_index = tabs.index(selected_tab)
 if st.session_state.view != 'main':
     st.session_state.view = 'main'
     st.session_state.active_category = None
-
-st.markdown("---")
-
-# --------------------------
-# DEBUG / UI CONTROL PANEL
-# --------------------------
-with st.expander("⚙️ UI Size Controls", expanded=st.session_state.show_debug):
-    new_button_height = st.slider("Button Height (px)", 24, 60, st.session_state.ui_settings['button_height'])
-    new_image_width = st.slider("Image Width (px)", 150, 400, st.session_state.ui_settings['image_width'])
-    new_spacing = st.slider("Spacing Between Elements", 0.1, 1.5, st.session_state.ui_settings['spacing'], step=0.1)
-    new_columns = st.slider("Parts Grid Columns", 2, 5, st.session_state.ui_settings['card_columns'])
-    
-    if st.button("🔄 Reset Defaults"):
-        st.session_state.ui_settings.update({
-            'button_height': 32,
-            'image_width': 220,
-            'spacing': 0.4,
-            'card_columns': 3
-        })
-        st.rerun()
-    
-    # Apply changes only after sliders are rendered
-    if new_button_height != st.session_state.ui_settings['button_height'] or \
-       new_image_width != st.session_state.ui_settings['image_width'] or \
-       new_spacing != st.session_state.ui_settings['spacing'] or \
-       new_columns != st.session_state.ui_settings['card_columns']:
-        
-        st.session_state.ui_settings['button_height'] = new_button_height
-        st.session_state.ui_settings['image_width'] = new_image_width
-        st.session_state.ui_settings['spacing'] = new_spacing
-        st.session_state.ui_settings['card_columns'] = new_columns
-        st.rerun()
 
 st.markdown("---")
 
@@ -348,7 +277,10 @@ elif st.session_state.active_tab_index == 1:
         # --------------------------
         # PARTS BROWSER VIEW
         # --------------------------
-        st.button("← Go Back", on_click=go_back_main, use_container_width=True)
+        if st.button("← Go Back", use_container_width=True):
+            go_back_main()
+            st.rerun()
+            
         st.markdown("---")
         
         cat = st.session_state.active_category
@@ -368,20 +300,20 @@ elif st.session_state.active_tab_index == 1:
         st.write(f"Showing {len(filtered_parts)} parts")
         st.markdown("---")
         
-        # Parts Grid - dynamic columns from debug slider
-        cols = st.columns(st.session_state.ui_settings['card_columns'])
+        # Parts Grid - 3 columns
+        cols = st.columns(3)
         for idx, part in enumerate(filtered_parts):
-            with cols[idx % st.session_state.ui_settings['card_columns']]:
+            with cols[idx % 3]:
                 st.markdown(f"### {part.name}")
                 
                 # Local image from img folder - use part name exactly as filename
                 img_path = os.path.join(os.path.dirname(__file__), 'img', f"{part.name}.jpg")
                 
                 if os.path.exists(img_path):
-                    st.image(img_path, width=st.session_state.ui_settings['image_width'])
+                    st.image(img_path, width=220)
                 else:
                     # Fallback placeholder when image not found
-                    st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), width=st.session_state.ui_settings['image_width'])
+                    st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), width=220)
                 
                 st.markdown(f"**Price:** ${part.price}")
                 
