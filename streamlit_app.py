@@ -31,6 +31,15 @@ if 'builds' not in st.session_state:
 if 'active_build_name' not in st.session_state:
     st.session_state.active_build_name = None
 
+if 'active_tab_index' not in st.session_state:
+    st.session_state.active_tab_index = 0
+
+if 'view' not in st.session_state:
+    st.session_state.view = 'main'
+
+if 'active_category' not in st.session_state:
+    st.session_state.active_category = None
+
 # Helper functions
 def get_active_build():
     return st.session_state.builds.get(st.session_state.active_build_name)
@@ -63,20 +72,20 @@ def export_build(build):
     output.append(f"Total Cost: ${build.get_total()}\n")
     return ''.join(output)
 
+def go_back_main():
+    st.session_state.view = 'main'
+    st.session_state.active_category = None
+
 # Main App
-st.title("🖥️ PC Build Configurator v1.4")
+st.title("🖥️ PC Build Configurator v1.5")
 st.markdown("---")
 
 # --------------------------
-# NEW CONTROLLED NAVIGATION
+# CONTROLLED NAVIGATION
 # --------------------------
 
 # Define the tab names
 tabs = ["📦 Manage Builds", "✏️ Edit Build", "📤 Import / Export"]
-
-# Use session state to track the active tab index
-if 'active_tab_index' not in st.session_state:
-    st.session_state.active_tab_index = 0
 
 # Create segmented control navigation
 selected_tab = st.segmented_control(
@@ -88,10 +97,7 @@ selected_tab = st.segmented_control(
 )
 
 # Update the index based on the selection
-# Fix for double click race condition: only update if selected_tab is valid
-if selected_tab in tabs:
-    st.session_state.active_tab_index = tabs.index(selected_tab)
-# Otherwise keep the existing active tab index (prevents ValueError on fast double clicks)
+st.session_state.active_tab_index = tabs.index(selected_tab)
 
 st.markdown("---")
 
@@ -169,103 +175,149 @@ elif st.session_state.active_tab_index == 1:
         st.info("No builds available. Go to Manage Builds to create a new build first.")
         st.stop()
     
-    # Build selector
-    col_select, col_total = st.columns([3,1])
-    with col_select:
-        active_build = st.selectbox(
-            "Active Build", 
-            options=list(st.session_state.builds.keys()),
-            index=list(st.session_state.builds.keys()).index(st.session_state.active_build_name)
-        )
-        if active_build != st.session_state.active_build_name:
-            st.session_state.active_build_name = active_build
-            st.rerun()
-    
     current_build = get_active_build()
     
-    with col_total:
-        st.metric("Total Estimated Cost", f"${current_build.get_total()}")
-
-    st.markdown("---")
-
-    # Layout
-    left_col, right_col = st.columns([1, 1])
-
-    with left_col:
-        st.subheader("Add Components")
-        
-        selected_category = st.selectbox("Select Component Type", categories, key="create_cat")
-        
-        filtered_parts = [c for c in catalog if c.type == selected_category]
-        
-        if filtered_parts:
-            part_options = [f"{p.name} (${p.price})" for p in filtered_parts]
-            selected_part_index = st.selectbox(f"Select {selected_category}", range(len(part_options)), format_func=lambda x: part_options[x], key="create_part")
-            
-            selected_part = filtered_parts[selected_part_index]
-            
-            if st.button("✅ Add to Build", use_container_width=True, key="add_btn"):
-                current_build.add_item(selected_part)
-                st.success(f"Added {selected_part.name} to your build!")
+    if st.session_state.view == 'main':
+        # Build selector
+        col_select, col_total = st.columns([3,1])
+        with col_select:
+            active_build = st.selectbox(
+                "Active Build", 
+                options=list(st.session_state.builds.keys()),
+                index=list(st.session_state.builds.keys()).index(st.session_state.active_build_name)
+            )
+            if active_build != st.session_state.active_build_name:
+                st.session_state.active_build_name = active_build
                 st.rerun()
-        else:
-            st.warning(f"No parts found for {selected_category}")
-
-    with right_col:
-        st.subheader("Current Build")
         
-        for category, part in current_build.parts.items():
-            col_cat, col_val, col_remove = st.columns([2, 4, 1])
-            with col_cat:
-                st.write(f"**{category}**")
-            with col_val:
-                if part:
-                    st.write(f"{part.name} (${part.price})")
-                else:
-                    st.write("🔴 Not Selected")
-            with col_remove:
-                if part:
-                    if st.button("❌", key=f"remove_{category}", help=f"Remove {category}"):
-                        current_build.parts[category] = None
+        with col_total:
+            st.metric("Total Estimated Cost", f"${current_build.get_total()}")
+
+        st.markdown("---")
+
+        # Layout
+        left_col, right_col = st.columns([1, 1])
+
+        with left_col:
+            st.subheader("Add Components")
+            
+            # Category Buttons Grid
+            st.write("Click to browse parts:")
+            cat_cols = st.columns(2)
+            for idx, cat in enumerate(categories):
+                with cat_cols[idx % 2]:
+                    if st.button(f"🔹 {cat}", use_container_width=True, type="secondary"):
+                        st.session_state.active_category = cat
+                        st.session_state.view = 'browser'
                         st.rerun()
-        st.markdown("")
 
-    st.markdown("---")
+        with right_col:
+            st.subheader("Current Build")
+            
+            for category, part in current_build.parts.items():
+                col_cat, col_val, col_remove = st.columns([2, 4, 1])
+                with col_cat:
+                    st.write(f"**{category}**")
+                with col_val:
+                    if part:
+                        st.write(f"{part.name} (${part.price})")
+                    else:
+                        st.write("🔴 Not Selected")
+                with col_remove:
+                    if part:
+                        if st.button("❌", key=f"remove_{category}", help=f"Remove {category}"):
+                            current_build.parts[category] = None
+                            st.rerun()
+            st.markdown("")
 
-    # Compatibility Status
-    st.subheader("Build Status")
-    errors = current_build.get_status()
-    
-    missing_errors = [e for e in errors if e.startswith("Missing essential component")]
-    compatibility_errors = [e for e in errors if not e.startswith("Missing essential component")]
-    
-    if missing_errors:
-        st.warning("⏳ Build Incomplete:")
-        for error in missing_errors:
-            st.write(f"  ⚪ {error}")
-    
-    if compatibility_errors:
-        st.error("⚠️ Compatibility Issues Found:")
-        for error in compatibility_errors:
-            st.write(f"  ✖ {error}")
-    
-    if not errors:
-        st.success("✅ Build Complete & All components are compatible!")
+        st.markdown("---")
 
-    # Power Calculation
-    total_watts = sum(p.tdp for p in current_build.parts.values() if p and p.type != "PSU")
-    psu = current_build.parts["PSU"]
+        # Compatibility Status
+        st.subheader("Build Status")
+        errors = current_build.get_status()
+        
+        missing_errors = [e for e in errors if e.startswith("Missing essential component")]
+        compatibility_errors = [e for e in errors if not e.startswith("Missing essential component")]
+        
+        if missing_errors:
+            st.warning("⏳ Build Incomplete:")
+            for error in missing_errors:
+                st.write(f"  ⚪ {error}")
+        
+        if compatibility_errors:
+            st.error("⚠️ Compatibility Issues Found:")
+            for error in compatibility_errors:
+                st.write(f"  ✖ {error}")
+        
+        if not errors:
+            st.success("✅ Build Complete & All components are compatible!")
 
-    st.markdown("---")
-    st.subheader("Power Consumption")
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        st.metric("System Power Draw", f"{total_watts}W")
-    with col_p2:
-        if psu:
-            st.metric("PSU Capacity", f"{psu.tdp}W")
-            if total_watts > psu.tdp:
-                st.error("⚠️ Insufficient Power Supply!")
+        # Power Calculation
+        total_watts = sum(p.tdp for p in current_build.parts.values() if p and p.type != "PSU")
+        psu = current_build.parts["PSU"]
+
+        st.markdown("---")
+        st.subheader("Power Consumption")
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            st.metric("System Power Draw", f"{total_watts}W")
+        with col_p2:
+            if psu:
+                st.metric("PSU Capacity", f"{psu.tdp}W")
+                if total_watts > psu.tdp:
+                    st.error("⚠️ Insufficient Power Supply!")
+    
+    elif st.session_state.view == 'browser':
+        # --------------------------
+        # PARTS BROWSER VIEW
+        # --------------------------
+        st.button("← Go Back", on_click=go_back_main, use_container_width=True)
+        st.markdown("---")
+        
+        cat = st.session_state.active_category
+        st.subheader(f"🔹 Browse {cat}s")
+        
+        # Filter options
+        st.subheader("Filters")
+        col1, col2 = st.columns(2)
+        with col1:
+            min_price = st.number_input("Minimum Price", min_value=0, value=0)
+        with col2:
+            max_price = st.number_input("Maximum Price", min_value=0, value=5000)
+        
+        filtered_parts = [c for c in catalog if c.type == cat and min_price <= c.price <= max_price]
+        
+        st.markdown("---")
+        st.write(f"Showing {len(filtered_parts)} parts")
+        st.markdown("---")
+        
+        # Parts Grid - 3 columns
+        cols = st.columns(3)
+        for idx, part in enumerate(filtered_parts):
+            with cols[idx % 3]:
+                st.markdown(f"### {part.name}")
+                
+            
+                st.image("https://via.placeholder.com/300x200?text={}+Image".format(part.name.replace(" ", "+")), use_column_width=True)
+                
+                st.markdown(f"**Price:** ${part.price}")
+                
+                # specs
+                if part.socket and part.socket != 'N/A':
+                    st.markdown(f"**Socket:** {part.socket}")
+                if part.memory and part.memory != 'N/A':
+                    st.markdown(f"**Memory:** {part.memory}")
+                st.markdown(f"**TDP:** {part.tdp}W")
+                
+                st.markdown("---")
+                
+                if st.button("✅ Select This Part", key=f"select_{cat}_{idx}", use_container_width=True, type="primary"):
+                    current_build.add_item(part)
+                    st.success(f"Added {part.name} to build!")
+                    go_back_main()
+                    st.rerun()
+                
+                st.markdown("---")
 
 # --------------------------
 # IMPORT / EXPORT TAB
