@@ -149,17 +149,31 @@ st.markdown("---")
 # DEBUG / UI CONTROL PANEL
 # --------------------------
 with st.expander("⚙️ UI Size Controls", expanded=st.session_state.show_debug):
-    st.session_state.ui_settings['button_height'] = st.slider("Button Height (px)", 24, 60, st.session_state.ui_settings['button_height'])
-    st.session_state.ui_settings['image_width'] = st.slider("Image Width (px)", 150, 400, st.session_state.ui_settings['image_width'])
-    st.session_state.ui_settings['spacing'] = st.slider("Spacing Between Elements", 0.1, 1.5, st.session_state.ui_settings['spacing'], step=0.1)
-    st.session_state.ui_settings['card_columns'] = st.slider("Parts Grid Columns", 2, 5, st.session_state.ui_settings['card_columns'])
+    new_button_height = st.slider("Button Height (px)", 24, 60, st.session_state.ui_settings['button_height'])
+    new_image_width = st.slider("Image Width (px)", 150, 400, st.session_state.ui_settings['image_width'])
+    new_spacing = st.slider("Spacing Between Elements", 0.1, 1.5, st.session_state.ui_settings['spacing'], step=0.1)
+    new_columns = st.slider("Parts Grid Columns", 2, 5, st.session_state.ui_settings['card_columns'])
     
-    st.button("🔄 Reset Defaults", on_click=lambda: st.session_state.ui_settings.update({
-        'button_height': 32,
-        'image_width': 220,
-        'spacing': 0.4,
-        'card_columns': 3
-    }))
+    if st.button("🔄 Reset Defaults"):
+        st.session_state.ui_settings.update({
+            'button_height': 32,
+            'image_width': 220,
+            'spacing': 0.4,
+            'card_columns': 3
+        })
+        st.rerun()
+    
+    # Apply changes only after sliders are rendered
+    if new_button_height != st.session_state.ui_settings['button_height'] or \
+       new_image_width != st.session_state.ui_settings['image_width'] or \
+       new_spacing != st.session_state.ui_settings['spacing'] or \
+       new_columns != st.session_state.ui_settings['card_columns']:
+        
+        st.session_state.ui_settings['button_height'] = new_button_height
+        st.session_state.ui_settings['image_width'] = new_image_width
+        st.session_state.ui_settings['spacing'] = new_spacing
+        st.session_state.ui_settings['card_columns'] = new_columns
+        st.rerun()
 
 st.markdown("---")
 
