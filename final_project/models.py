@@ -34,7 +34,14 @@ class Build:
                 errors.append(f"Socket Mismatch: {cpu.name} ({cpu.socket}) vs {mobo.name} ({mobo.socket})")
             if cpu.memory != mobo.memory:
                 errors.append(f"RAM Mismatch: CPU needs {cpu.memory}, Mobo needs {mobo.memory}")
-       
+
+        
+        mobo = self.parts["Motherboard"]
+        ram = self.parts["RAM"]
+        if mobo and ram:
+            if mobo.memory != ram.memory:
+                errors.append(f"Memory Type Mismatch: Motherboard supports {mobo.memory}, selected RAM is {ram.memory}")
+        
         
         total_watts = sum(p.tdp for p in self.parts.values() if p and p.type !="PSU") #had bug here, forget to not count psu in total energy draw, and was confused were from i was getting additional watts (even after realising my mistake i wrote{...if p and p !="PSU"} and wasted another 20 minutes angry and confused)
         if psu and total_watts > psu.tdp:
