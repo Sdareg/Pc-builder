@@ -109,18 +109,11 @@ if st.session_state.view == 'preview' and st.session_state.active_build_name:
         for error in compatibility_errors:
             st.write(f"  ✖ {error}")
     
-    st.markdown("---")
     
-    col_back, col_edit = st.columns(2)
-    with col_back:
-        if st.button("← Back to Manage", use_container_width=True):
-            st.session_state.view = 'main'
-            st.rerun()
     
-    with col_edit:
-        if st.button("✏️ Edit This Build", use_container_width=True, type="primary"):
-            st.session_state.view = 'main'
-            st.rerun()
+    if st.button("← Back to Manage", use_container_width=True):
+        st.session_state.view = 'main'
+        st.rerun()
     
     st.stop()
 
